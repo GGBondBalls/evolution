@@ -1,0 +1,54 @@
+# ---------------------------------------------------------------------------
+# Base config — every experiment imports this and overrides bits via Hydra.
+# ---------------------------------------------------------------------------
+defaults:
+  - _self_
+  - llm: qwen7b
+  - env: alfworld
+  - agent: react
+  - exp: smoke
+
+seed: 42
+output_dir: ./runs/${now:%Y%m%d_%H%M%S}_${exp.name}
+log_level: INFO
+
+# Memory backend defaults — see configs/agent/* for per-agent overrides.
+memory:
+  enabled: false                 # ReAct baseline disables memory by default
+  sqlite_path: ${output_dir}/memory.sqlite
+  qdrant:
+    url: null                    # null → use in-memory client (no docker required)
+    collection_prefix: rm
+    vector_size: 1024            # BGE-M3 / Qwen3-Embedding-0.6B both 1024
+    distance: Cosine
+  embed:
+    backend: sentence_transformers
+    model: BAAI/bge-m3
+    device: auto                 # auto | cpu | cuda
+    cache_dir: ./data/cache/embed
+    batch_size: 32
+
+# Hyperparameters from the design doc (§2.5/§2.6) — keep them named here.
+rm:
+  patterns:
+    min_support: 3               # K_PATTERN
+    merge_cosine: 0.90
+  surprise:
+    backend: llm_judge           # llm_judge | embed_delta | logprob
+    tau_low: 0.20
+    tau_high: 0.70
+    rewrite_threshold: 5         # consecutive strong refutes → revise
+    rewrite_window: 5
+  forget:
+    period_trajectories: 50
+    weights: { utility: 0.4, stability: 0.4, age: 0.2 }
+    decay_lambda: 0.01
+    purge_top_k_ratio: 0.10
+  retrieval:
+    k_principle: 3
+    k_pattern: 5
+    k_episode: 3
+    min_principle_conf: 0.6
+    min_pattern_conf: 0.5
+    confidence_threshold_for_episode_drilldown: 0.5
+    token_budget_per_layer: 1500

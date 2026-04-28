@@ -1,0 +1,10 @@
+Given a Pattern:
+  Condition:        {condition}
+  Action template:  {action_template}
+  Expected effect:  {expected_effect}
+
+And the current situation prefix:
+{prefix}
+
+Predict: if the Agent follows this Pattern, what observation should it see next?
+Answer in ONE sentence — be concrete and testable.

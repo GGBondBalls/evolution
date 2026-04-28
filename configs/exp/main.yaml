@@ -1,0 +1,6 @@
+name: main
+n_tasks: 134                    # ALFWorld eval_out_of_distribution size
+n_seeds: 3
+n_trials_per_task: 3            # Reflexion convention
+log_to_wandb: true
+wandb_project: rm-main

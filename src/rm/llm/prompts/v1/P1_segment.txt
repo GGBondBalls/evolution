@@ -1,0 +1,20 @@
+You are a trajectory analyst. Below is a step-by-step trace of an Agent solving a task.
+Segment it into semantically coherent sub-goal blocks ("Episodes").
+
+Output ONLY a JSON array. Each element:
+{{
+  "sub_goal": "<one short sentence describing the sub-goal>",
+  "start_step": <int, inclusive>,
+  "end_step":   <int, inclusive>,
+  "summary":    "<1-3 sentences summarising what the agent did and why>",
+  "outcome":    "success" | "partial" | "failure"
+}}
+
+Rules:
+- A new block starts when the sub-goal changes.
+- Each block must contain >= 2 steps unless the trajectory itself is shorter.
+- Skip obvious dead-end exploration when summarising.
+- Use the same step indices that appear in the trace.
+
+Trace:
+{trace}

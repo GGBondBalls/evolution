@@ -1,0 +1,20 @@
+You are a meta-reflector building cross-task Principles for an Agent.
+Below are recent Patterns. Some converge across task families; some conflict.
+
+Output ONLY a JSON array of new Principles:
+[
+  {{
+    "statement":  "<one aphoristic sentence the agent should remember>",
+    "scope":      "cross-task" | "<domain tag>",
+    "supporting_patterns": ["<pattern_id>", ...]
+  }},
+  ...
+]
+
+Rules:
+- A Principle must be more abstract than any single Pattern.
+- Reference at most 5 supporting Pattern IDs per Principle.
+- If no convergence is observed, output [].
+
+Recent Patterns:
+{patterns}

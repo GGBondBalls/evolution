@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(jq --version)",
+      "Bash(bash /c/Users/Lenovo/.claude/statusline-command.sh)",
+      "Bash(conda --version)",
+      "Bash(conda env *)"
+    ]
+  }
+}

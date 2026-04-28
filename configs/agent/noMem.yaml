@@ -1,0 +1,11 @@
+name: no_mem
+mode: llm
+max_steps: 50
+prompt_version: v1
+prompts:
+  system: react_system
+  step: react_step
+think_temperature: 0.7
+act_temperature: 0.0
+memory:
+  enabled: false

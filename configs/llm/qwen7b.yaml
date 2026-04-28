@@ -1,0 +1,13 @@
+# Local Qwen2.5-7B-Instruct served by vLLM (OpenAI-compatible API)
+provider: openai_compat
+base_url: http://localhost:8000/v1
+api_key: EMPTY
+model: qwen7b
+max_tokens: 1024
+temperature: 0.0
+top_p: 1.0
+timeout: 120
+retry:
+  max_attempts: 4
+  initial_wait: 1.0
+  max_wait: 30.0

@@ -1,0 +1,5 @@
+# Mock env used for unit tests / Windows hosts without textworld.
+name: mock
+seed: 42
+horizon: 10
+goal_keyword: GOAL

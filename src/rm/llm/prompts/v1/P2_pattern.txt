@@ -1,0 +1,20 @@
+You are an expert at inducing reusable behaviour patterns from past experience.
+Below are {k} similar Episodes that solve a similar sub-goal.
+
+Induce ONE Pattern. Output ONLY JSON:
+{{
+  "condition": "<a natural-language predicate describing WHEN this pattern applies>",
+  "action_template": "<a parameterised action template; use <slot> for variable parts>",
+  "expected_effect": "<the state-change you expect after executing the action>",
+  "scope": ["<task-family-tag>", ...]
+}}
+
+Rules:
+- ``condition`` should be reusable across new situations — avoid baking in
+  task-specific constants.
+- ``action_template`` may use placeholders like ``<object>``, ``<location>``.
+- ``expected_effect`` should be testable (i.e., compare-able to a future
+  observation).
+
+Episodes:
+{episodes}

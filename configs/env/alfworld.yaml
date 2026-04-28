@@ -1,0 +1,8 @@
+name: alfworld
+split: eval_out_of_distribution         # train | eval_in_distribution | eval_out_of_distribution
+batch_size: 1
+max_steps: 50
+data_path: null   # null → ALFWorldEnv resolves $ALFWORLD_DATA or ~/.alfworld at runtime
+type: AlfredTWEnv                       # AlfredTWEnv | AlfredThorEnv (vision)
+controller_type: oracle                 # only relevant for ThorEnv
+expert_type: handcoded

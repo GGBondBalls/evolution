@@ -1,0 +1,6 @@
+name: smoke
+n_tasks: 5
+n_seeds: 1
+n_trials_per_task: 1
+log_to_wandb: false
+wandb_project: rm-smoke

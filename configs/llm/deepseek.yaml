@@ -1,0 +1,13 @@
+# DeepSeek (cheap dev fallback when no local GPU is available)
+provider: openai_compat
+base_url: https://api.deepseek.com/v1
+api_key: ${oc.env:DEEPSEEK_API_KEY}
+model: deepseek-chat
+max_tokens: 1024
+temperature: 0.0
+top_p: 1.0
+timeout: 60
+retry:
+  max_attempts: 5
+  initial_wait: 2.0
+  max_wait: 60.0

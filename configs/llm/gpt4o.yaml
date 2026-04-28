@@ -1,0 +1,13 @@
+# Cloud OpenAI / Azure OpenAI fallback (oracle judge / refute LLM-judge)
+provider: openai
+base_url: https://api.openai.com/v1
+api_key: ${oc.env:OPENAI_API_KEY}
+model: gpt-4o
+max_tokens: 1024
+temperature: 0.0
+top_p: 1.0
+timeout: 60
+retry:
+  max_attempts: 5
+  initial_wait: 2.0
+  max_wait: 60.0

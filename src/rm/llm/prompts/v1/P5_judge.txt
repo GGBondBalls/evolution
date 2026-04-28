@@ -1,0 +1,12 @@
+Predicted: {predicted}
+Actual:    {actual}
+
+Task: judge how much the actual outcome diverges from the prediction, semantically.
+Output ONLY a single integer 1-5:
+  1 = nearly identical
+  2 = small details differ
+  3 = partially aligned
+  4 = clearly conflicting
+  5 = completely opposite
+
+Output exactly one digit. No prose, no punctuation.

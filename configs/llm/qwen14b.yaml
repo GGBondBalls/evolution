@@ -1,0 +1,12 @@
+provider: openai_compat
+base_url: http://localhost:8000/v1
+api_key: EMPTY
+model: qwen14b
+max_tokens: 1024
+temperature: 0.0
+top_p: 1.0
+timeout: 180
+retry:
+  max_attempts: 4
+  initial_wait: 1.0
+  max_wait: 30.0

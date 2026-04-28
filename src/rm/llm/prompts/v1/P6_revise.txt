@@ -1,0 +1,31 @@
+Old Pattern (currently believed):
+  pattern_id:        {pattern_id}
+  condition:         {condition}
+  action_template:   {action_template}
+  expected_effect:   {expected_effect}
+  confidence:        {confidence:.2f}
+  evidence_count:    {evidence_count}
+
+Refuting Episodes (recent strong refutations):
+{refute_episodes}
+
+Analyse: under which conditions did the old Pattern fail? Did the failures all
+share a common sub-condition (=> prefer ``split``), or is the action plainly
+wrong now (=> prefer ``refine``)?
+
+Output ONLY JSON:
+{{
+  "decision":  "refine" | "split" | "discard",
+  "rationale": "<1-2 sentences>",
+  "patterns":  [
+    {{
+      "condition":       "...",
+      "action_template": "...",
+      "expected_effect": "...",
+      "scope":           ["...", "..."]
+    }}
+    // For ``refine``: emit exactly 1 Pattern.
+    // For ``split``:  emit 2-3 Patterns covering disjoint sub-conditions.
+    // For ``discard``: emit [].
+  ]
+}}

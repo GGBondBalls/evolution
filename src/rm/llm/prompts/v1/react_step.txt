@@ -1,0 +1,10 @@
+{memory_block}Trajectory so far:
+{trajectory}
+
+Latest observation:
+{observation}
+
+Admissible commands:
+{admissible}
+
+Output your next Thought and Action in the exact format specified.
