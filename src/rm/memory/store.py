@@ -451,6 +451,36 @@ class MemoryStore:
         if points:
             self._qdrant.upsert(collection_name=self._coll(layer), points=points)
 
+    def fetch_vectors(
+        self, layer: MemoryLayer, item_ids: list[str]
+    ) -> dict[str, list[float]]:
+        """Hydrate embeddings for a batch of items from Qdrant.
+
+        Used by the writer / clusterer because we deliberately don't store
+        embeddings in SQLite — they live in Qdrant only.
+        """
+        if not item_ids:
+            return {}
+        point_ids = [_point_id(iid) for iid in item_ids]
+        try:
+            points = self._qdrant.retrieve(
+                collection_name=self._coll(layer),
+                ids=point_ids,
+                with_vectors=True,
+                with_payload=True,
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(f"fetch_vectors failed: {exc}")
+            return {}
+        out: dict[str, list[float]] = {}
+        for p in points:
+            payload = getattr(p, "payload", {}) or {}
+            iid = payload.get("item_id")
+            vec = getattr(p, "vector", None)
+            if iid and vec is not None:
+                out[iid] = list(vec)
+        return out
+
     def query_vectors(
         self,
         layer: MemoryLayer,

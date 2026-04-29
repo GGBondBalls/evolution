@@ -221,3 +221,174 @@ python scripts/00_smoke_alfworld.py --n_tasks 5
 ---
 
 <!-- 之后每完成一轮，在此处追加一节，命名为 "## 阶段 X 第 Y 轮 — <主题> (YYYY-MM-DD)" -->
+
+## 阶段 1 第 2 轮 — Writer / Updater / ReflectiveAgent / Eval (2026-04-29)
+
+### 目标
+把 Round 1 的"插件骨架"灌入"四层认知机制"：
+1. 自下而上的写入流（Event → Episode → Pattern → Principle，见 §2.3）；
+2. 横向反馈的更新流（Predictive-Surprise + Bayesian + 自动 Revision，见 §2.5）；
+3. 自上而下的检索流（query 文本 → Principle/Pattern/Episode 三层文本块，见 §2.4）；
+4. RM-aware Agent 把以上都接进 ReAct loop；
+5. eval runner / metrics 让结果可比较、可复现。
+
+### 范围（本轮 ✅；下一轮 ➡）
+
+| 模块 | 状态 | 说明 |
+|---|---|---|
+| `memory/writer.py` — Episode/Pattern/Principle 三阶段抽象 | ✅ | 含 KMeans + silhouette 聚类、Qdrant 向量去重合并 |
+| `memory/updater.py` — Surprise + Bayesian + Revision | ✅ | 三种 surprise backend；自动触发 P6 重写 |
+| `memory/retriever.py` — query → MemoryContext → prompt 文本 | ✅ | 包装 store.retrieve；含层级 token 预算 |
+| `agent/reflective.py` — RM-aware ReAct | ✅ | 注入 memory_block；trajectory 结束触发 writer + updater |
+| `eval/metrics.py` — SR / Steps / Tokens / `|M|` + bootstrap CI | ✅ | 不依赖 scipy，纯 Python 重采样 |
+| `eval/runner.py` — 多种子 × 多任务 × 多 trial 驱动器 | ✅ | 输出 trajectories.jsonl + metrics.json + config.json |
+| `scripts/02_run_rm_mock.py` — RM 端到端 mock 烟测 | ✅ | 8/8 任务，1 Pattern + 2 Principle + 7 update 全链路通 |
+| 单元测试（+38 用例 = 81 总数） | ✅ | writer / updater / retriever / reflective / metrics+runner |
+| `memory/forgetter.py` — utility × stability 遗忘 | ➡ Round 3 | roadmap W7 |
+| Reflexion baseline 复现（W2 硬指标） | ➡ Round 3 | 必过；不过则后续 RM 数据不可信 |
+| 接入真 LLM (Qwen / DeepSeek / GPT-4o) 的端到端冒烟 | ➡ Round 3 | 用 `02_run_rm_mock.py --llm <name>` 的 LLM 切换 |
+| ALFWorld baseline 接线 | ➡ Round 3 | Linux/WSL 下；scripts/03_run_react_alfworld.py |
+
+### 关键架构决策（仅记录非显然的）
+
+1. **三种 Surprise 后端（§2.5.1 三选项）全部内置，可在 config 切换**。
+   - `llm_judge`（默认）：P4 预测 → P5 1–5 分歧度 → 归一到 [0,1]。语义敏感但贵。
+   - `embed_delta`：cosine_distance(embed(expected_effect), embed(actual_summary))。便宜且足够 robust，**消融用**（A7）。
+   - `logprob`：未实现；占位符自动 fallback 到 `embed_delta` 并打日志。Round 3 视情况补。
+   - 设计在 `MemoryUpdater(backend=...)` 一处切，方便 §4.4 A7/A8 消融。
+
+2. **Beta 更新有"软更新带"**。
+   - `s < tau_low`：α += 1（强支持）；
+   - `s > tau_high`：β += 1（强反驳）；
+   - 中间带：α += 1−s，β += s（按 surprise 比例软更新）。
+   - 同时给 α/β 加 `alpha_max=200, beta_max=200` 的硬上限，对应 §3.3 (A3) 防止"无限累积"。
+
+3. **Pattern revision 三选一：refine / split / discard（§2.5.3）**。
+   - LLM 通过 P6 输出 decision；新生成 Pattern 设 `parent_pattern_id`、`version+=1`、α/β 重置。
+   - `discard`：旧 Pattern 不删，而是把 β 加倍 + 1 → 后续检索置信度急剧下降，相当于"软淘汰"。
+   - 这样保留 audit trail（原 Pattern 仍能查），符合 roadmap §2.6 "不丢信息，只是降权 + 浓缩"的定调。
+
+4. **聚类专门处理"重复嵌入"边界**。
+   - 现实：写入流第一次跑时所有 Episode 文本相似度极高，KMeans 会触发 ConvergenceWarning。
+   - 处理：捕获 ConvergenceWarning 静默；当 `len(set(labels)) < 2` 时跳过 silhouette；最终保底返回 `[0]*n`，让单一大簇仍然能用作 Pattern induction 的输入。
+
+5. **Pattern 去重用 Qdrant ANN，而不是遍历内存**。
+   - 起初实现用 `store.all_patterns()` 遍历再算 cosine — 这暴露了一个**根本性架构问题**：SQLite 不存 embedding（只有 Qdrant 存），所以 `all_patterns()` 返回的 Pattern 全部 `embedding=None`，cosine 永远 0。
+   - 现修复：`PatternInducer.find_near_duplicate` 调 `store.query_vectors(MemoryLayer.PATTERN, candidate.embedding, top_k=1)`，直接用 Qdrant 的 cosine score 比较 `merge_cosine` 阈值。
+   - 同样的根因影响 `EpisodeClusterer.cluster(recent)`：从 SQLite 拉的 episodes 没向量，全被过滤。修复：在 writer 里加 `store.fetch_vectors(MemoryLayer.EPISODE, ep_ids)` 主动从 Qdrant 拉向量再注入。
+
+6. **`MemoryStore.fetch_vectors(layer, ids)` 是新引入的对外 API**。
+   - 用例：writer 聚类、未来 forgetter 计算几何分布。
+   - 实现：用 `qdrant.retrieve(ids=..., with_vectors=True)`。失败时返回空 dict（log 警告），让上层自然降级。
+
+7. **ReflectiveAgent 把 memory 接入 prompt 的"零侵入式"做法**。
+   - 直接 override 父类 `_memory_block(traj)` 这个钩子（ReActAgent 已经在 prompt 模板里 `{memory_block}` 留了占位）；
+   - on_episode_start 缓存任务文本；act() 时 `query = task | last_obs`，避免高维特征工程；
+   - `retrieve()` 失败（向量维度不匹配 / Qdrant 异常）时返回空 ctx，agent 不崩。
+   - 结果：把"普通 ReAct"和"RM-aware"切换只需替换 agent 实例，prompt v1 不动。
+
+8. **eval runner 的 trajectory 序列化策略**。
+   - 用 JSONL 一条 trajectory 一行：可流式写、grep 友好、不需要全部跑完才能看结果。
+   - `metrics.json` 是聚合视图，独立持久化，方便对比多次运行。
+   - 不依赖 W&B（设 `log_to_wandb=False` 默认）；启用时 W&B 失败也不阻塞实验。
+
+### 调试中暴露并修复的 bug（保留以防复现）
+
+| # | 现象 | 原因 | 修复 |
+|---|---|---|---|
+| 1 | `EpisodeClusterer.cluster(recent)` 始终返回 `[]`，Pattern 永远不被抽取 | SQLite 读出的 Episode 没有 `embedding` 字段，cluster 全过滤 | 写入流里加一步：`store.fetch_vectors(LAYER.EPISODE, ids)` 从 Qdrant 注入向量再聚类 |
+| 2 | `PatternInducer.find_near_duplicate` 永远返回 None，无法去重 | 同 #1 — `store.all_patterns()` 不带向量 | 改用 `store.query_vectors(LAYER.PATTERN, candidate.embedding, top_k=1)` 走 Qdrant ANN |
+| 3 | `test_surprise_llm_judge` 拿到 0.5（中性）而非 1.0（强反驳） | rule pattern `r"1=nearly identical"` 不匹配 P5 模板里的 `"1 = nearly identical"`（带空格） | rule 改用 P5 独有短语 `r"diverges from the prediction"` |
+| 4 | KMeans 在重复 embedding 上报 ConvergenceWarning | 同一 embedding 的多个点导致 KMeans 收敛到 1 簇 | `warnings.simplefilter("ignore", ConvergenceWarning)` + 对 `set(labels) < 2` 跳过 silhouette；保底返回单簇 labels |
+
+### 第 2 轮验收指标（实测）
+
+| 指标 | 目标 | 实测 | 状态 |
+|---|---|---|---|
+| 单元测试通过数 | ≥ 70 (=43 + ~30 新) | 81 | ✅ |
+| 单元测试耗时 | < 10 s | ~7 s | ✅ |
+| ruff lint clean | 0 error | 0 error | ✅ |
+| RM mock 端到端 SR | 100 % (8/8) | 100 % (8/8) | ✅ |
+| RM mock 跑出 ≥ 1 Pattern | ≥ 1 | 1（被反复 merge） | ✅ |
+| RM mock 跑出 ≥ 1 Principle | ≥ 1 | 2（每 4 traj 反思一次） | ✅ |
+| RM mock 触发 ≥ 1 Bayesian update | ≥ 1 | 7 | ✅ |
+
+### 新增/修改文件清单
+
+```
+新增：
+  src/rm/memory/writer.py            (~480 行)  — Episode/Pattern/Principle 三阶段
+  src/rm/memory/updater.py           (~330 行)  — Surprise + Bayesian + Revision
+  src/rm/memory/retriever.py         (~140 行)  — 文本查询 → MemoryContext → prompt 文本
+  src/rm/agent/reflective.py         (~170 行)  — ReActAgent + RM
+  src/rm/eval/__init__.py            (~5 行)
+  src/rm/eval/metrics.py             (~110 行)  — EvalMetrics + bootstrap CI
+  src/rm/eval/runner.py              (~170 行)  — 多种子 × 多任务 × 多 trial
+  scripts/02_run_rm_mock.py          (~150 行)  — RM 端到端 mock 烟测
+  tests/test_writer.py               (~210 行 / 9 用例)
+  tests/test_updater.py              (~210 行 / 13 用例)
+  tests/test_retriever.py            (~70 行 / 5 用例)
+  tests/test_reflective_agent.py     (~110 行 / 3 用例)
+  tests/test_metrics_and_runner.py   (~90 行 / 8 用例)
+
+修改：
+  src/rm/memory/__init__.py          — 导出新写入器/检索器/更新器
+  src/rm/memory/store.py             — 新增 fetch_vectors(layer, item_ids)
+  src/rm/agent/__init__.py           — 导出 ReflectiveAgent
+```
+
+### 复现命令（拷即可用）
+
+```bash
+conda activate rm
+
+# 单元测试 → 期望 "81 passed"
+pytest -q
+
+# Lint
+ruff check src/ tests/ scripts/
+
+# self-check（仍然 7/7）
+python scripts/99_self_check.py
+
+# RM 端到端 mock 烟测 → 期望 SR=8/8, |M| 中 patterns≥1 principles≥1 updates≥1
+python scripts/02_run_rm_mock.py --n_tasks 8 --max_steps 5
+
+# 切换 surprise backend 做消融对比
+python scripts/02_run_rm_mock.py --n_tasks 8 --surprise_backend embed_delta
+python scripts/02_run_rm_mock.py --n_tasks 8 --surprise_backend llm_judge
+```
+
+---
+
+## 第 3 轮蓝图（下一轮要做）
+
+> 本轮以"对外可比较的实验数字"为主，不再造新模块。
+
+1. **Reflexion baseline 复现**（roadmap W2 硬指标，最高优先级）。
+   - 路径：`src/rm/baselines/reflexion.py`，从 `noahshinn/reflexion` 抽 verbal-reflection 逻辑；
+   - 适配我们的 LLMClient 与 envs 接口；
+   - **验收**：在 ALFWorld eval_out_of_distribution（134 任务）上用 GPT-3.5 跑出 SR ∈ [78, 85]%（论文报）；用 Qwen2.5-7B 跑同设置（不要求达到论文数）。
+   - 不过这一关，后续 RM 数据全部不可信。
+
+2. **真 LLM 端到端 RM 跑**。
+   - `02_run_rm_mock.py --llm qwen7b` / `--llm deepseek`，先在 MockEnv 验证 prompt 在真 LLM 下能产 1 个 Pattern；
+   - 然后接 ALFWorld（需 WSL）跑 5–10 任务，记 traj + memory dump 到 `data/traces/`。
+
+3. **Forgetter（roadmap W7 内容前置）**。
+   - `memory/forgetter.py`：utility × stability 双轴评分 + consolidate before delete；
+   - 测试：在写入 50+ patterns 后跑一次 forget，检查低分条目被合并/归档。
+
+4. **Eval CLI**。
+   - `scripts/run_eval.py --config configs/exp/main.yaml`：把 Round 2 的 Runner 接到 Hydra 配置上，一行命令出主表行。
+   - 输出格式直接对齐 §4.3 主表的列。
+
+5. **W&B 集成实测**。
+   - 跑一次开 `log_to_wandb=True`，确认 metrics + trajectory hash 都进 W&B；
+   - 在 `coding_log.md` 留 W&B board 链接（runs/main 板）。
+
+### 待办风险更新
+
+- **R2 Pattern 抽取质量**：mock 跑下抽出来的 Pattern 看着像样，但**真 LLM 第一次跑必定有大量 prompt drift**——Round 3 需要立刻准备 50 条人工抽检表，对 P1/P2/P3 各做一次 prompt 微调。
+- **R5 benchmark 分歧**：在 Reflexion 复现失败时，先 freeze prompts/v1，用 GPT-4o-as-judge 反向校验数字一致性。
+

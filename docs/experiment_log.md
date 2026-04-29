@@ -104,6 +104,57 @@ ruff check src/ tests/ scripts/
 
 ---
 
+### E1.01 — RM 端到端 mock 烟测（占位）
+
+* **日期**：（待填）
+* **关联代码**：阶段 1 第 2 轮编码完成后
+* **目标**：验证 ReflectiveAgent + Writer + Updater + Retriever 全链路在 mock 环境下能产出 Pattern/Principle/Update 三类记忆；建立后续真 LLM / 真 env 跑实验的对照基线。
+
+**配置**
+* env: mock（goal_keyword="GOAL"）
+* agent: rm（ReflectiveAgent）
+* llm: mock（content-routed JSON 回复）
+* embedder: mock（dim=64）
+* surprise_backend: embed_delta（同时跑一次 llm_judge 做对比）
+* n_tasks: 8
+* max_steps: 5
+* reflect_every_n_trajectories: 4
+
+**命令**
+```bash
+# 默认 backend=embed_delta
+python scripts/02_run_rm_mock.py --n_tasks 8 --max_steps 5
+
+# 切 backend=llm_judge 对比
+python scripts/02_run_rm_mock.py --n_tasks 8 --max_steps 5 --surprise_backend llm_judge
+
+# 同时再跑一次单测和 lint，确保实验前代码状态干净
+pytest -q
+ruff check src/ tests/ scripts/
+```
+
+**预期结果**
+| 指标 | 值 |
+|---|---|
+| pytest pass | 81 / 81 |
+| ruff errors | 0 |
+| SR (8 任务) | 8 / 8 = 100 % |
+| Avg steps | 1.00 |
+| `|M|.patterns` | ≥ 1 |
+| `|M|.principles` | ≥ 1 |
+| `|M|.updates` | ≥ 1 |
+| Tokens (mock) | 几百级别 |
+
+**实测结果**：（待填）
+
+**观察 / 解释**：（待填）
+
+**Follow-ups**：
+* 如果 patterns 计数始终是 1（被反复 merge），说明 mock 环境过于单一——下一步用真 LLM + ALFWorld 验证 Pattern 多样性。
+* 切到 `llm_judge` 后 surprise 分布是否变化？记一张直方图。
+
+---
+
 <!-- 后续每跑一次实验在此处追加 ### EX.YY — <标题> 一节 -->
 
 ## Failed runs（汇总区）
